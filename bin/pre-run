@@ -9,7 +9,7 @@ REPO=ARGV[1]
 
 # If we have a non-empty ${STATE_SHA} env, then we 
 # should update the status of the SHA to be "pending..."
-exit(0) if ENV['STATE_SHA'].empty?
+exit(0) if ENV['STATE_SHA'].nil?
 
 github = Github.new(TOKEN, REPO)
 github.update_state(ENV['STATE_SHA'], "pending", "Tests are running...", ENV['BUILD_URL'])
