@@ -1,0 +1,13 @@
+#!/usr/bin/env ruby
+
+TOKEN=ARGV[0]
+REPO=ARGV[1]
+
+# If we have a non-empty ${STATE_SHA} env, then we 
+# should update the status of the SHA to be "pending..."
+exit(0) if ENV['STATE_SHA'].empty?
+
+github = Github.new(TOKEN, REPO)
+github.update_state(ENV['STATE_SHA'], "error", "State script is incomplete. The test _may_ have succeeded.", ENV['BUILD_URL'])
+
+puts "Updated GitHub state for sha #{ENV["STATE_SHA"]} to error (for now)..."
