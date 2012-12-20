@@ -1,0 +1,57 @@
+#!/usr/bin/env ruby
+
+$:.unshift(File.expand_path("../../lib", __FILE__))
+
+require 'github'
+require 'state_file'
+require 'uri'
+require 'open-uri'
+require 'json'
+
+TOKEN=ARGV[0]
+REPO=ARGV[1]
+FILE=ARGV[2]
+
+statefile = StateFile.new(FILE)
+github = Github.new(TOKEN, REPO)
+
+def trigger_build(job, build_sha, state_sha)
+  $stderr.puts "Triggering build..."
+  `curl -XPOST "http://127.0.0.1:8080/job/freeagent/buildWithParameters?branch=#{build_sha}&STATE_SHA=#{state_sha}"`
+end
+
+if statefile.exist?
+  # IF we _do_ have a state file, then go through the pull requests and
+  # see if the current merge_commit_sha has changed, or if there is a
+  # pull request we don't know about.
+  $stderr.puts "StateFile exists, polling pull requests"
+
+  github.pull_requests.each do |request|
+    if request.mergeable? and !request.merged?
+      last_merge_sha = statefile.read("pullreq_#{request.id}")
+      if last_merge_sha != request.merge_commit_sha
+        $stderr.puts "[PullRequest:#{request.id}] Merge commit SHA has changed from '#{last_merge_sha}' to '#{request.merge_commit_sha}'. Triggering build of HEAD: '#{request.head_sha}'"
+        trigger_build("freeagent", "origin/pull/#{request.id}/merge", request.head_sha)
+        statefile.write("pullreq_#{request.id}", request.merge_commit_sha)
+      else
+        $stderr.puts "[PullRequest:#{request.id}] Merge commit SHA unchanged. Doing nothing."
+      end
+    end
+  end
+
+else
+  # IF we don't have a state-file, then get a listing of all pull 
+  # requests and write the state file with the current merge_commit_sha
+  # but take no action.
+  $stderr.puts "StateFile doesn't exist, loading with existing pull requests"
+
+  github.pull_requests.each do |request|
+    if request.mergeable? and !request.merged?
+      $stderr.puts "Writing state of pull request #{request.id} to '#{request.merge_commit_sha}'"
+      statefile.write("pullreq_#{request.id}", request.merge_commit_sha)
+    end
+  end
+
+end
+
+
