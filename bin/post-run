@@ -3,15 +3,32 @@
 $:.unshift(File.expand_path("../../lib", __FILE__))
 
 require 'github'
+require 'uri'
+require 'open-uri'
+require 'json'
 
 TOKEN=ARGV[0]
 REPO=ARGV[1]
+JENKINS_BASE="http://127.0.0.1:8080/"
 
 # If we have a non-empty ${STATE_SHA} env, then we 
 # should update the status of the SHA to be "pending..."
 exit(0) if ENV['STATE_SHA'].empty?
 
-github = Github.new(TOKEN, REPO)
-github.update_state(ENV['STATE_SHA'], "error", "State script is incomplete. The test _may_ have succeeded.", ENV['BUILD_URL'])
 
-puts "Updated GitHub state for sha #{ENV["STATE_SHA"]} to error (for now)..."
+github = Github.new(TOKEN, REPO)
+begin
+  url = URI.parse(ENV['BUILD_URL'])
+  status = URI.join(JENKINS_BASE, url.path, "api/json")
+
+  job = JSON.load(open(status.to_s))
+  if job["result"] == "SUCCESS"
+    github.update_state(ENV['STATE_SHA'], "success", "Tests pass after merging to master.", ENV['BUILD_URL'])
+  else
+    github.update_state(ENV['STATE_SHA'], "failure", "Tests fail after merging to master.", ENV['BUILD_URL'])
+  end
+
+rescue Exception => e
+  github.update_state(ENV['STATE_SHA'], "error", "Exception when trying to determine test run result: #{e.inspect}.", ENV['BUILD_URL'])
+  raise
+end
