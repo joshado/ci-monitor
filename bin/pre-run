@@ -1,6 +1,8 @@
 #!/usr/bin/env ruby
 
-require 'lib/github'
+$:.unshift(File.expand_path("../../lib", __FILE__))
+
+require 'github'
 
 TOKEN=ARGV[0]
 REPO=ARGV[1]
